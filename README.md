@@ -26,7 +26,7 @@ It associates every finding with specific packet numbers, reconstructs TCP strea
 - **Rich terminal UI** with progress bars and color-coded results
 - **JSON output** (`--json`) for programmatic consumption
 - **Search filtering** (`--search`) to narrow results
-- **Configurable** via `~/.config/pcaphunt/config.toml`
+- **Configurable** via `~/.config/PcapHunt/config.toml`
 - **Graceful error handling** — malformed packets never crash the tool
 - **Fast** — works incrementally without loading the entire PCAP into memory
 
@@ -36,7 +36,7 @@ It associates every finding with specific packet numbers, reconstructs TCP strea
 
 ```bash
 git clone <repo-url>
-cd pcaphunt
+cd PcapHunt
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -45,7 +45,7 @@ pip install -e ".[dev]"
 ### System install with pipx
 
 ```bash
-pipx install pcaphunt
+pipx install PcapHunt
 ```
 
 ### Requirements
@@ -59,38 +59,38 @@ pipx install pcaphunt
 ### Basic scan
 
 ```bash
-pcaphunt capture.pcap
+PcapHunt capture.pcap
 ```
 
 ### Deep mode (TCP stream reassembly)
 
 ```bash
-pcaphunt capture.pcap --deep
+PcapHunt capture.pcap --deep
 ```
 
 ### Specify output directory
 
 ```bash
-pcaphunt capture.pcap -o ./results
+PcapHunt capture.pcap -o ./results
 ```
 
 ### JSON output to stdout
 
 ```bash
-pcaphunt capture.pcap --json
+PcapHunt capture.pcap --json
 ```
 
 ### Search for a specific string
 
 ```bash
-pcaphunt capture.pcap --search "flag"
+PcapHunt capture.pcap --search "flag"
 ```
 
 ### Full CLI reference
 
 ```text
-$ pcaphunt --help
-usage: pcaphunt [-h] [-o OUTPUT] [--deep] [--min-length MIN_LENGTH]
+$ PcapHunt --help
+usage: PcapHunt [-h] [-o OUTPUT] [--deep] [--min-length MIN_LENGTH]
                 [--no-dedup] [--json] [--quiet] [--search SEARCH] [--version]
                 [pcap]
 
@@ -101,7 +101,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o, --output OUTPUT   Output directory (default: ./pcaphunt_output)
+  -o, --output OUTPUT   Output directory (default: ./PcapHunt_output)
   --deep                Enable deep mode (TCP stream reassembly, etc.)
   --min-length MIN_LENGTH
                         Minimum plaintext string length (default: 6)
@@ -115,7 +115,7 @@ options:
 Also runnable without installation:
 
 ```bash
-python -m pcaphunt capture.pcap
+python -m PcapHunt capture.pcap
 ```
 
 ## Examples
@@ -123,7 +123,7 @@ python -m pcaphunt capture.pcap
 ### Example 1: Basic scan
 
 ```bash
-$ pcaphunt challenge.pcap
+$ PcapHunt challenge.pcap
 
  ____   ____          _   _             _
 |  _ \ / ___|__ _ ___| | | |  _   _ _ __ | |_
@@ -139,7 +139,7 @@ $ pcaphunt challenge.pcap
 [+] Analyzing packets... 100%
 
 ────────────────────────────────────────────
-              PCAPHUNT RESULTS
+              PcapHunt RESULTS
 ────────────────────────────────────────────
 
   Plaintext       1,284
@@ -166,14 +166,14 @@ $ pcaphunt challenge.pcap
 🔒 Credentials detected: 4
   (saved to output/credentials/)
 
-[+] Results: ./pcaphunt_output/
+[+] Results: ./PcapHunt_output/
 [+] Analysis completed in 4.82 seconds
 ```
 
 ### Example 2: Deep mode
 
 ```bash
-$ pcaphunt challenge.pcap --deep -o ./deep_results
+$ PcapHunt challenge.pcap --deep -o ./deep_results
 ```
 
 Deep mode enables TCP stream reassembly, allowing PcapHunt to detect strings split across multiple packets.
@@ -181,7 +181,7 @@ Deep mode enables TCP stream reassembly, allowing PcapHunt to detect strings spl
 ### Example 3: JSON output
 
 ```bash
-$ pcaphunt challenge.pcap --json --quiet | jq '.[] | select(.type == "flags")'
+$ PcapHunt challenge.pcap --json --quiet | jq '.[] | select(.type == "flags")'
 
 {
   "type": "flags",
@@ -199,10 +199,10 @@ $ pcaphunt challenge.pcap --json --quiet | jq '.[] | select(.type == "flags")'
 
 ## Output Structure
 
-Default output directory: `./pcaphunt_output/`
+Default output directory: `./PcapHunt_output/`
 
 ```text
-pcaphunt_output/
+PcapHunt_output/
 ├── plaintext/
 ├── base64/
 ├── hex/
@@ -290,11 +290,11 @@ With `--deep`: `CTF{this_is_a_flag}` detected and associated with packets 100–
 
 ## Configuration
 
-Create `~/.config/pcaphunt/config.toml`:
+Create `~/.config/PcapHunt/config.toml`:
 
 ```toml
 # PcapHunt Configuration File
-# Place this file at ~/.config/pcaphunt/config.toml
+# Place this file at ~/.config/PcapHunt/config.toml
 
 # Minimum string length for plaintext extraction
 min_length = 6
@@ -329,7 +329,7 @@ flag_patterns = [
 ]
 
 # Default output directory
-output_directory = "./pcaphunt_output"
+output_directory = "./PcapHunt_output"
 
 # Maximum recursive decode depth
 max_decode_depth = 3

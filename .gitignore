@@ -38,7 +38,7 @@ env/
 Thumbs.db
 
 # Test outputs
-pcaphunt_output/
+PcapHunt_output/
 tests/fixtures/*.pcap
 tests/fixtures/*.pcapng
 
@@ -46,3 +46,6 @@ tests/fixtures/*.pcapng
 htmlcov/
 .coverage
 .pytest_cache/
+
+pcaphunt_output/
+Pcaphunt_output/

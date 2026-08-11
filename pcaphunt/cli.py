@@ -18,26 +18,25 @@ from pcaphunt.output import get_counts, write_findings
 from pcaphunt.version import __version__
 
 BANNER = r"""[bold cyan]
- ____   ____          _   _             _
-|  _ \ / ___|__ _ ___| | | |  _   _ _ __ | |_
-| |_) | |   / _` / __| |_| | | | | | '_ \| __|
-|  __/| |__| (_| \__ \  _  | | |_| | | | | |_
-|_|    \____\__,_|___/_| |_|  \__,_|_| |_|\__|
-
-             PCAP Content Hunter
+ ____                 _   _             _
+|  _ \ ___ __ _ _ __ | | | |_   _ _ __ | |_
+| |_) / __/ _` | '_ \| |_| | | | | '_ \| __|
+|  __/ (_| (_| | |_) |  _  | |_| | | | | |_
+|_|   \___\__,_| .__/|_| |_|\__,_|_| |_|\__|
+               |_|                          
 [/bold cyan]"""
 
 
 def get_parser() -> argparse.ArgumentParser:
     """Create and return the argument parser."""
     parser = argparse.ArgumentParser(
-        prog="pcaphunt",
+        prog="PcapHunt",
         description="PcapHunt - Hunt for useful data in PCAP/PCAPNG files",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("pcap", nargs="?", help="Path to PCAP/PCAPNG file")
     parser.add_argument(
-        "-o", "--output", default="./pcaphunt_output", help="Output directory (default: ./pcaphunt_output)"
+        "-o", "--output", default="./PcapHunt_output", help="Output directory (default: ./PcapHunt_output)"
     )
     parser.add_argument(
         "--deep", action="store_true", help="Enable deep mode (TCP stream reassembly, etc.)"
@@ -177,7 +176,7 @@ def _print_results(
     counts = get_counts(findings)
 
     console.print("[bold]────────────────────────────────────────────[/bold]")
-    console.print("[bold cyan]              PCAPHUNT RESULTS[/bold cyan]")
+    console.print("[bold cyan]              PcapHunt RESULTS[/bold cyan]")
     console.print("[bold]────────────────────────────────────────────[/bold]")
     console.print("")
 
@@ -226,7 +225,7 @@ def _print_results(
 
 
 def main() -> None:
-    """Entry point for pcaphunt CLI."""
+    """Entry point for PcapHunt CLI."""
     sys.exit(run_cli())
 
 

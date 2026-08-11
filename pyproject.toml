@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pcaphunt"
+name = "PcapHunt"
 version = "1.0.0"
 description = "A CLI tool for hunting useful data in PCAP/PCAPNG files"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "PcapHunt Contributors"}
+    {name = "N0V4", email = "a.talbi@esi-sba.dz"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -35,11 +35,11 @@ dev = [
 ]
 
 [project.scripts]
-pcaphunt = "pcaphunt.cli:main"
+PcapHunt = "pcaphunt.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/pcaphunt/pcaphunt"
-Issues = "https://github.com/pcaphunt/pcaphunt/issues"
+Homepage = "https://github.com/bel3ota/PcapHunt"
+Issues = "https://github.com/bel3ota/PcapHunt/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

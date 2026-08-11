@@ -46,12 +46,12 @@ class TestCLI:
         assert args.search == "flag"
 
     def test_run_cli_no_args(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["pcaphunt"])
+        monkeypatch.setattr(sys, "argv", ["PcapHunt"])
         result = run_cli()
         assert result == 1
 
     def test_run_cli_nonexistent_file(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["pcaphunt", "/nonexistent/file.pcap"])
+        monkeypatch.setattr(sys, "argv", ["PcapHunt", "/nonexistent/file.pcap"])
         result = run_cli()
         assert result == 1
 
