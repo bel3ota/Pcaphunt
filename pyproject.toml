@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PcapHunt"
-version = "1.0.0"
+version = "1.0.1"
 description = "A CLI tool for hunting useful data in PCAP/PCAPNG files"
 readme = "README.md"
 license = {text = "MIT"}
