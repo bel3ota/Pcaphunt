@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pcaphunt"
+version = "1.0.0"
+description = "A CLI tool for hunting useful data in PCAP/PCAPNG files"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "PcapHunt Contributors"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Networking :: Monitoring",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "scapy>=2.5.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+pcaphunt = "pcaphunt.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/pcaphunt/pcaphunt"
+Issues = "https://github.com/pcaphunt/pcaphunt/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pcaphunt*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
