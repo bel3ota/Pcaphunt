@@ -8,11 +8,6 @@ from scapy.all import IP, IPv6, TCP, UDP, DNS, Raw
 from scapy.packet import Packet
 
 from pcaphunt.pcap_reader import get_packet_layers, get_packet_payload
-from pcaphunt.stream_reassembly import (
-    get_reassembled_bytes,
-    get_stream_payloads,
-    reassemble_streams,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +30,15 @@ def get_packet_metadata(pkt: Packet, pkt_num: int) -> dict[str, Any]:
         "destination_ip": None,
         "destination_port": None,
         "layers": get_packet_layers(pkt),
+        "timestamp": None,
     }
+
+    # Extract timestamp if available
+    if hasattr(pkt, "time"):
+        try:
+            meta["timestamp"] = float(pkt.time)
+        except Exception:
+            pass
 
     # Determine IP
     if pkt.haslayer(IP):
@@ -91,65 +94,38 @@ def get_packet_metadata(pkt: Packet, pkt_num: int) -> dict[str, Any]:
 
 
 def format_source(meta: dict[str, Any]) -> str:
-    """Format source string from metadata.
-
-    Args:
-        meta: Packet metadata dictionary.
-
-    Returns:
-        Formatted source string.
-    """
+    """Format source string from metadata."""
     if meta.get("source_ip") and meta.get("source_port"):
         return f"{meta['source_ip']}:{meta['source_port']}"
     return meta.get("source_ip") or ""
 
 
 def format_destination(meta: dict[str, Any]) -> str:
-    """Format destination string from metadata.
-
-    Args:
-        meta: Packet metadata dictionary.
-
-    Returns:
-        Formatted destination string.
-    """
+    """Format destination string from metadata."""
     if meta.get("destination_ip") and meta.get("destination_port"):
         return f"{meta['destination_ip']}:{meta['destination_port']}"
     return meta.get("destination_ip") or ""
 
 
 def extract_printable_strings(data: bytes, min_length: int = 6) -> list[tuple[int, str]]:
-    """Extract printable ASCII and UTF-8 strings from bytes.
-
-    Args:
-        data: Bytes to search.
-        min_length: Minimum string length.
-
-    Returns:
-        List of (offset, string) tuples.
-    """
+    """Extract printable ASCII and UTF-8 strings from bytes."""
     results: list[tuple[int, str]] = []
     if not data:
         return results
 
-    # Try ASCII first
     ascii_re = re.compile(rb"[\x20-\x7e]{%d,}" % min_length)
     for match in ascii_re.finditer(data):
         offset = match.start()
         text = match.group().decode("ascii", errors="ignore")
         results.append((offset, text))
 
-    # Try UTF-8 where valid
     try:
         decoded = data.decode("utf-8", errors="ignore")
-        # Find sequences of printable chars
         printable_re = re.compile(r"[\x20-\x7e\x80-\xff]{%d,}" % min_length)
         for match in printable_re.finditer(decoded):
             offset = match.start()
             text = match.group()
-            # Only include if it has some non-ASCII or if not already found
             if any(ord(c) >= 128 for c in text):
-                # Check if this overlaps with ASCII results
                 overlap = False
                 for ao, at in results:
                     if abs(ao - offset) < len(text):
@@ -160,23 +136,17 @@ def extract_printable_strings(data: bytes, min_length: int = 6) -> list[tuple[in
     except Exception:
         pass
 
-    # Sort by offset
     results.sort(key=lambda x: x[0])
     return results
 
 
 def build_context(meta: dict[str, Any]) -> dict[str, Any]:
-    """Build a context dict for detectors from metadata.
-
-    Args:
-        meta: Packet metadata.
-
-    Returns:
-        Context dictionary.
-    """
+    """Build a context dict for detectors from metadata."""
     return {
         "packet_numbers": [meta["packet_number"]],
+        "first_seen_packet": meta["packet_number"],
         "protocol": meta.get("protocol", "Unknown"),
         "source": format_source(meta),
         "destination": format_destination(meta),
+        "timestamp": meta.get("timestamp"),
     }

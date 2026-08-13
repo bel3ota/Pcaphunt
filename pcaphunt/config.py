@@ -32,10 +32,19 @@ DEFAULT_CONFIG: dict[str, Any] = {
         r"HTB\{[^}]+\}",
         r"picoCTF\{[^}]+\}",
     ],
-    "output_directory": "./PcapHunt_output",
+    "output_directory": "./pcaphunt_output",
     "max_decode_depth": 3,
     "deduplication": True,
     "deep_mode_default": False,
+    # Phase 2 options
+    "extract_files": True,
+    "enable_scoring": True,
+    "enable_timeline": True,
+    "enable_topology": True,
+    "enable_profile": True,
+    "custom_rules": [],
+    "yara_rules_path": "",
+    "plugins": [],
 }
 
 
@@ -55,7 +64,7 @@ class Config:
 
     def _load_config_file(self) -> None:
         """Load configuration from file if it exists."""
-        config_path = Path.home() / ".config" / "PcapHunt" / "config.toml"
+        config_path = Path.home() / ".config" / "pcaphunt" / "config.toml"
         if not config_path.exists():
             return
         try:
@@ -104,7 +113,7 @@ class Config:
 
     @property
     def output_directory(self) -> str:
-        return str(self._data.get("output_directory", "./PcapHunt_output"))
+        return str(self._data.get("output_directory", "./pcaphunt_output"))
 
     @property
     def max_decode_depth(self) -> int:
@@ -123,7 +132,7 @@ class Config:
 def create_sample_config() -> str:
     """Return a sample configuration file content."""
     return """# PcapHunt Configuration File
-# Place this file at ~/.config/PcapHunt/config.toml
+# Place this file at ~/.config/pcaphunt/config.toml
 
 # Minimum string length for plaintext extraction
 min_length = 6
@@ -158,7 +167,7 @@ flag_patterns = [
 ]
 
 # Default output directory
-output_directory = "./PcapHunt_output"
+output_directory = "./pcaphunt_output"
 
 # Maximum recursive decode depth
 max_decode_depth = 3

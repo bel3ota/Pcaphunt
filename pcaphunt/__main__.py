@@ -1,4 +1,4 @@
-"""Module entry point for python -m PcapHunt."""
+"""Module entry point for python -m pcaphunt."""
 
 from pcaphunt.cli import main
 

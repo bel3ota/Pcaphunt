@@ -1,15 +1,15 @@
 """Output generation for PcapHunt findings."""
 
+from __future__ import annotations
+
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
-from pcaphunt.utils import safe_filename
+from pcaphunt.models import FileArtifact
 
 logger = logging.getLogger(__name__)
-
 
 OUTPUT_DIRS = [
     "plaintext",
@@ -27,18 +27,20 @@ OUTPUT_DIRS = [
     "files",
     "suspicious",
     "streams",
+    "protocol_http",
+    "protocol_dns",
+    "protocol_ftp",
+    "protocol_smtp",
+    "protocol_irc",
+    "protocol_dhcp",
+    "extracted_files",
+    "yara",
+    "rules",
 ]
 
 
 def create_output_structure(base_dir: str) -> Path:
-    """Create the output directory structure.
-
-    Args:
-        base_dir: Base output directory path.
-
-    Returns:
-        Path to base output directory.
-    """
+    """Create the output directory structure."""
     base = Path(base_dir)
     base.mkdir(parents=True, exist_ok=True)
     for subdir in OUTPUT_DIRS:
@@ -47,14 +49,7 @@ def create_output_structure(base_dir: str) -> Path:
 
 
 def format_finding_text(finding: dict[str, Any]) -> str:
-    """Format a finding as human-readable text.
-
-    Args:
-        finding: Finding dictionary.
-
-    Returns:
-        Formatted text string.
-    """
+    """Format a finding as human-readable text."""
     lines = [
         "PcapHunt Finding",
         "================",
@@ -77,10 +72,27 @@ def format_finding_text(finding: dict[str, Any]) -> str:
         lines.append(f"Source: {finding['source']}")
     if finding.get("destination"):
         lines.append(f"Destination: {finding['destination']}")
+    if finding.get("stream_id"):
+        lines.append(f"Stream: {finding['stream_id']}")
+    if finding.get("timestamp"):
+        try:
+            from datetime import datetime
+            ts = datetime.fromtimestamp(finding["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+            lines.append(f"Timestamp: {ts}")
+        except Exception:
+            pass
     if finding.get("offset") is not None:
         lines.append(f"Offset: {finding['offset']}")
     if finding.get("confidence") is not None:
         lines.append(f"Confidence: {finding['confidence']:.2f}")
+    if finding.get("severity"):
+        lines.append(f"Severity: {finding['severity'].upper()}")
+    if finding.get("score") is not None:
+        lines.append(f"Score: {finding['score']}")
+        if finding.get("score_reasons"):
+            lines.append("Score Reasons:")
+            for reason in finding["score_reasons"]:
+                lines.append(f"  - {reason}")
     if finding.get("file_type"):
         lines.append(f"File Type: {finding['file_type']}")
     if finding.get("entropy") is not None:
@@ -107,6 +119,12 @@ def format_finding_text(finding: dict[str, Any]) -> str:
         lines.append(f"Notes: {finding['notes']}")
         lines.append("")
 
+    if finding.get("metadata"):
+        lines.append("Metadata:")
+        for k, v in finding["metadata"].items():
+            lines.append(f"  {k}: {v}")
+        lines.append("")
+
     return "\n".join(lines)
 
 
@@ -117,15 +135,7 @@ class FileCounter:
         self._counts: dict[str, int] = {}
 
     def next(self, directory: str, prefix: str) -> str:
-        """Get the next available filename.
-
-        Args:
-            directory: Directory name.
-            prefix: Filename prefix.
-
-        Returns:
-            Next available filename.
-        """
+        """Get the next available filename."""
         key = f"{directory}/{prefix}"
         self._counts[key] = self._counts.get(key, 0) + 1
         count = self._counts[key]
@@ -138,12 +148,7 @@ def write_findings(
     findings: list[dict[str, Any]],
     base_dir: str,
 ) -> None:
-    """Write all findings to output files.
-
-    Args:
-        findings: List of finding dictionaries.
-        base_dir: Base output directory.
-    """
+    """Write all findings to output files."""
     base = create_output_structure(base_dir)
     counter = FileCounter()
 
@@ -183,15 +188,104 @@ def write_findings(
         logger.warning("Failed to write JSON: %s", exc)
 
 
+def write_full_output(result, base_dir: str) -> None:
+    """Write complete Phase 2 output including findings, artifacts, profile, timeline, topology."""
+    base = create_output_structure(base_dir)
+
+    # Write findings (standard)
+    write_findings(result.findings, base_dir)
+
+    # Write artifacts (extracted files)
+    if result.artifacts:
+        extracted_dir = base / "extracted_files"
+        extracted_dir.mkdir(parents=True, exist_ok=True)
+        for artifact in result.artifacts:
+            try:
+                # Write artifact metadata
+                meta_path = extracted_dir / f"{artifact.filename}.meta.json"
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(artifact.to_dict(), f, indent=2, ensure_ascii=False, default=str)
+                # Write raw file data if available
+                raw_hex = artifact.metadata.get("_raw_bytes", "")
+                if raw_hex:
+                    raw_bytes = bytes.fromhex(raw_hex)
+                    file_path = extracted_dir / artifact.filename
+                    # Prevent overwriting
+                    counter = 1
+                    orig_path = file_path
+                    while file_path.exists():
+                        stem = orig_path.stem
+                        suffix = orig_path.suffix
+                        file_path = extracted_dir / f"{stem}_{counter:02d}{suffix}"
+                        counter += 1
+                    with open(file_path, "wb") as f:
+                        f.write(raw_bytes)
+            except Exception as exc:
+                logger.warning("Failed to write artifact %s: %s", artifact.filename, exc)
+
+    # Write profile
+    if result.profile is not None:
+        profile_path = base / "profile.json"
+        try:
+            with open(profile_path, "w", encoding="utf-8") as f:
+                json.dump(result.profile.to_dict(), f, indent=2, ensure_ascii=False, default=str)
+        except Exception as exc:
+            logger.warning("Failed to write profile: %s", exc)
+
+    # Write timeline
+    if result.timeline:
+        timeline_path = base / "timeline.json"
+        try:
+            with open(timeline_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    [e.to_dict() for e in result.timeline],
+                    f,
+                    indent=2,
+                    ensure_ascii=False,
+                    default=str,
+                )
+        except Exception as exc:
+            logger.warning("Failed to write timeline: %s", exc)
+
+    # Write topology
+    if result.nodes or result.edges:
+        topology_path = base / "topology.json"
+        try:
+            topo = {
+                "nodes": [n.to_dict() for n in result.nodes],
+                "edges": [e.to_dict() for e in result.edges],
+            }
+            with open(topology_path, "w", encoding="utf-8") as f:
+                json.dump(topo, f, indent=2, ensure_ascii=False, default=str)
+        except Exception as exc:
+            logger.warning("Failed to write topology: %s", exc)
+
+    # Write YARA matches
+    if result.yara_matches:
+        yara_path = base / "yara_matches.json"
+        try:
+            with open(yara_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    [m.to_dict() for m in result.yara_matches],
+                    f,
+                    indent=2,
+                    ensure_ascii=False,
+                    default=str,
+                )
+        except Exception as exc:
+            logger.warning("Failed to write YARA matches: %s", exc)
+
+    # Write combined full result
+    full_path = base / "full_result.json"
+    try:
+        with open(full_path, "w", encoding="utf-8") as f:
+            json.dump(result.to_dict(), f, indent=2, ensure_ascii=False, default=str)
+    except Exception as exc:
+        logger.warning("Failed to write full result: %s", exc)
+
+
 def format_summary(findings: list[dict[str, Any]]) -> str:
-    """Format a text summary of findings.
-
-    Args:
-        findings: List of finding dictionaries.
-
-    Returns:
-        Summary text.
-    """
+    """Format a text summary of findings."""
     counts: dict[str, int] = {}
     flags: list[str] = []
 
@@ -223,11 +317,19 @@ def format_summary(findings: list[dict[str, Any]]) -> str:
         "jwt",
         "files",
         "suspicious",
+        "protocol_http",
+        "protocol_dns",
+        "protocol_ftp",
+        "protocol_smtp",
+        "protocol_irc",
+        "protocol_dhcp",
     ]
 
     for ftype in order:
         count = counts.get(ftype, 0)
-        lines.append(f"  {ftype.replace('_', ' ').title():20s} {count}")
+        if count > 0:
+            label = ftype.replace("protocol_", "").replace("_", " ").title()
+            lines.append(f"  {label:20s} {count}")
 
     other = sum(v for k, v in counts.items() if k not in order)
     if other:
@@ -240,19 +342,21 @@ def format_summary(findings: list[dict[str, Any]]) -> str:
             lines.append(f"  {flag}")
         lines.append("")
 
+    # Protocol findings summary
+    proto_types = [k for k in counts if k.startswith("protocol_")]
+    if proto_types:
+        lines.append("Protocol Findings:")
+        for ptype in sorted(proto_types):
+            label = ptype.replace("protocol_", "").upper()
+            lines.append(f"  {label:20s} {counts[ptype]}")
+        lines.append("")
+
     lines.append(f"Total Findings: {len(findings)}")
     return "\n".join(lines) + "\n"
 
 
 def get_counts(findings: list[dict[str, Any]]) -> dict[str, int]:
-    """Get counts of findings by type.
-
-    Args:
-        findings: List of finding dictionaries.
-
-    Returns:
-        Dictionary mapping type to count.
-    """
+    """Get counts of findings by type."""
     counts: dict[str, int] = {}
     for f in findings:
         ftype = f.get("type", "unknown")

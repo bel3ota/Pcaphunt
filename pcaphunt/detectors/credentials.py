@@ -10,11 +10,11 @@ class CredentialsDetector(BaseDetector):
     """Detect credential patterns in packet data."""
 
     PATTERNS = [
-        (r"(?i)(username|user)\s*[:=]\s*([^\s&;]{3,50})", "username"),
-        (r"(?i)(password|pass|passwd)\s*[:=]\s*([^\s&;]{3,50})", "password"),
-        (r"(?i)(token|api_key|apikey|secret)\s*[:=]\s*([^\s&;]{8,100})", "token"),
-        (r"(?i)(authorization|bearer)\s+([A-Za-z0-9_\-\.]{8,200})", "auth"),
-        (r"(?i)(cookie|session)\s*[:=]\s*([^\s&;]{8,200})", "session"),
+        (r"(?i)(username|user|login)\s*[:=]\s*([^\s&;]{3,50})", "username", "medium"),
+        (r"(?i)(password|pass|passwd)\s*[:=]\s*([^\s&;]{3,50})", "password", "high"),
+        (r"(?i)(token|api_key|apikey|secret)\s*[:=]\s*([^\s&;]{8,100})", "token", "high"),
+        (r"(?i)(authorization|bearer)\s+([A-Za-z0-9_\-\.]{8,200})", "auth", "high"),
+        (r"(?i)(cookie|session)\s*[:=]\s*([^\s&;]{8,200})", "session", "medium"),
     ]
 
     SENSITIVE_KEYS = [
@@ -47,13 +47,12 @@ class CredentialsDetector(BaseDetector):
 
         seen: set[str] = set()
 
-        for pattern, cred_type in self.PATTERNS:
+        for pattern, cred_type, severity in self.PATTERNS:
             for match in re.finditer(pattern, text):
                 key = match.group(1)
                 value = match.group(2)
                 offset = match.start()
 
-                # Avoid false positives
                 if value.lower() in ("true", "false", "null", "none", "undefined", ""):
                     continue
                 if len(value) < 3:
@@ -71,11 +70,12 @@ class CredentialsDetector(BaseDetector):
                         decoded=f"{key}={value}",
                         offset=offset,
                         confidence=0.85,
+                        severity=severity,
                         notes=f"Type: {cred_type}",
                     )
                 )
 
-        # Also detect JSON-formatted credentials
+        # JSON-formatted credentials
         json_pattern = re.compile(
             r'"(password|passwd|pass|token|api_key|apikey|secret)"\s*:\s*"([^"]{3,100})"',
             re.IGNORECASE,
@@ -93,6 +93,8 @@ class CredentialsDetector(BaseDetector):
                 continue
             seen.add(fingerprint)
 
+            severity = "high" if key.lower() in ("password", "passwd", "pass", "secret") else "medium"
+
             results.append(
                 self.create_finding(
                     context,
@@ -100,6 +102,7 @@ class CredentialsDetector(BaseDetector):
                     decoded=f'{key}: "{value}"',
                     offset=offset,
                     confidence=0.88,
+                    severity=severity,
                     notes="Type: json_credential",
                 )
             )

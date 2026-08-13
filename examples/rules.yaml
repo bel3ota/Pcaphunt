@@ -1,0 +1,53 @@
+# PcapHunt Custom Detection Rules
+#
+# Usage:
+#   pcaphunt challenge.pcap --rules examples/rules.yaml
+#
+# Each rule must have:
+#   - name: human-readable name
+#   - category: output category (used as prefix: rule_<category>)
+#   - severity: info, low, medium, high, critical
+#   - regex: valid Python regex pattern
+#
+# Optional fields:
+#   - description: human-readable description
+#   - confidence: 0.0-1.0 (default 1.0)
+#   - enabled: true/false (default true)
+
+rules:
+  - name: CTF Flag (Generic)
+    category: flag
+    severity: critical
+    regex: "flag\\{[^}]+\\}"
+    description: "Generic CTF flag format"
+    confidence: 1.0
+    enabled: true
+
+  - name: HTB Flag
+    category: flag
+    severity: critical
+    regex: "HTB\\{[^}]+\\}"
+    description: "Hack The Box flag format"
+    confidence: 1.0
+
+  - name: Internal API Key
+    category: credential
+    severity: high
+    regex: "API_[A-Za-z0-9]{32}"
+    description: "Internal API key pattern"
+    confidence: 0.95
+
+  - name: Private Key Block
+    category: credential
+    severity: critical
+    regex: "BEGIN (RSA|OPENSSH|DSA|EC) PRIVATE KEY"
+    description: "Cryptographic private key block"
+    confidence: 1.0
+
+  - name: Suspicious Domain
+    category: suspicious-domain
+    severity: medium
+    regex: "(malware|phishing|botnet|c2)\\.[a-z]+"
+    description: "Suspicious domain name patterns"
+    confidence: 0.8
+    enabled: false

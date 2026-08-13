@@ -38,7 +38,11 @@ env/
 Thumbs.db
 
 # Test outputs
+pcaphunt_output/
 PcapHunt_output/
+Pcaphunt_output/
+
+# Test fixtures (generated)
 tests/fixtures/*.pcap
 tests/fixtures/*.pcapng
 
@@ -47,5 +51,10 @@ htmlcov/
 .coverage
 .pytest_cache/
 
-pcaphunt_output/
-Pcaphunt_output/
+# Docs build
+docs/_build/
+
+# Generated reports
+report.html
+summary.txt
+findings.json

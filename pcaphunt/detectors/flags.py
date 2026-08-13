@@ -61,6 +61,7 @@ class FlagDetector(BaseDetector):
                         decoded=flag,
                         offset=offset,
                         confidence=1.0,
+                        severity="high",
                     )
                 )
 

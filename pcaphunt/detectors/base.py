@@ -8,11 +8,7 @@ class BaseDetector(ABC):
     """Abstract base class for all PcapHunt detectors."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        """Initialize detector with optional config.
-
-        Args:
-            config: Configuration dictionary.
-        """
+        """Initialize detector with optional config."""
         self.config = config or {}
 
     @property
@@ -23,15 +19,7 @@ class BaseDetector(ABC):
 
     @abstractmethod
     def detect(self, data: bytes, context: dict[str, Any]) -> list[dict[str, Any]]:
-        """Run detection on data.
-
-        Args:
-            data: Byte string to analyze.
-            context: Metadata context dict.
-
-        Returns:
-            List of finding dictionaries.
-        """
+        """Run detection on data."""
         ...
 
     def create_finding(
@@ -42,35 +30,26 @@ class BaseDetector(ABC):
         ftype: str | None = None,
         offset: int = 0,
         confidence: float = 1.0,
+        severity: str = "info",
         **extra: Any,
     ) -> dict[str, Any]:
-        """Create a standardized finding dict.
-
-        Args:
-            context: Metadata context.
-            original: Original detected value.
-            decoded: Decoded value if applicable.
-            ftype: Finding type.
-            offset: Byte offset in packet/stream.
-            confidence: Confidence score (0-1).
-            **extra: Extra fields.
-
-        Returns:
-            Finding dictionary.
-        """
+        """Create a standardized finding dict."""
         from pcaphunt.utils import stable_fingerprint
 
         pkt_nums = context.get("packet_numbers", [])
         finding: dict[str, Any] = {
             "type": ftype or self.name,
             "packet_numbers": list(pkt_nums),
-            "first_seen_packet": pkt_nums[0] if pkt_nums else None,
+            "first_seen_packet": context.get("first_seen_packet", pkt_nums[0] if pkt_nums else None),
             "protocol": context.get("protocol", "Unknown"),
             "source": context.get("source", ""),
             "destination": context.get("destination", ""),
             "offset": offset,
             "original": original,
             "confidence": confidence,
+            "severity": severity,
+            "timestamp": context.get("timestamp"),
+            "stream_id": context.get("stream_id"),
         }
         if decoded is not None:
             finding["decoded"] = decoded
