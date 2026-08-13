@@ -182,7 +182,9 @@ def _analyze_from_packets(
                         logger.debug("Rule engine error on packet %d: %s", pkt_num, exc)
 
                 # File extraction (per-packet)
-                if config.get("extract_files", True) and artifacts_out is not None:
+                # In deep mode we skip per-packet extraction — TCP stream and UDP
+                # conversation reassembly produce complete files without truncation.
+                if config.get("extract_files", True) and artifacts_out is not None and not deep:
                     try:
                         art_list = extract_files_from_payload(payload, context)
                         artifacts_out.extend(art_list)

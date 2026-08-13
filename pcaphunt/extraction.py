@@ -147,10 +147,15 @@ def extract_files_from_payload(
     if not payload:
         return artifacts
 
-    # Simple sliding window: look for magic signatures at each byte offset
-    # For performance, we step by 1 for the first 4KB then skip if no magic found
-    offsets_checked: set[int] = set()
     max_scan = min(len(payload), 50 * 1024 * 1024)  # Scan first 50MB max
+    # Track extracted byte regions so different magics don't claim the same bytes.
+    extracted_regions: list[tuple[int, int]] = []
+
+    def _is_inside_region(offset: int) -> bool:
+        for start, end in extracted_regions:
+            if start <= offset < end:
+                return True
+        return False
 
     for magic, type_name, mime in MAGIC_SIGNATURES:
         start = 0
@@ -158,16 +163,16 @@ def extract_files_from_payload(
             idx = payload.find(magic, start)
             if idx == -1:
                 break
-            if idx in offsets_checked:
+            if _is_inside_region(idx):
                 start = idx + 1
                 continue
-            offsets_checked.add(idx)
 
             # Try to determine file bounds
-            # Heuristic: use content-length if HTTP, otherwise reasonable bounds
             file_data, complete, reason = _extract_file_bounds(
                 payload, idx, type_name, context, protocol_hint
             )
+            end = idx + len(file_data)
+            extracted_regions.append((idx, end))
 
             md5, sha1, sha256 = _compute_hashes_stream(file_data)
 
@@ -199,7 +204,9 @@ def extract_files_from_payload(
                 metadata={"_raw_bytes": file_data.hex()},
             )
             artifacts.append(artifact)
-            start = idx + 1
+            # Skip past the extracted file so the same magic (e.g. MP3 frame sync)
+            # doesn't find false positives inside the file we just extracted.
+            start = end
 
     return artifacts
 
@@ -366,8 +373,8 @@ def _extract_file_bounds(
 
     # Default: extract up to reasonable limit
     data = payload[offset : offset + extract_size]
-    complete = extract_size < available
-    reason = "" if not complete else "File may be truncated (size heuristic applied)"
+    complete = extract_size >= available
+    reason = "" if complete else "File may be truncated (size heuristic applied)"
     return data, complete, reason
 
 
@@ -525,8 +532,14 @@ def _scan_for_files_with_data(
     if not payload:
         return results
 
-    offsets_checked: set[int] = set()
     max_scan = min(len(payload), 50 * 1024 * 1024)
+    extracted_regions: list[tuple[int, int]] = []
+
+    def _is_inside_region(offset: int) -> bool:
+        for start, end in extracted_regions:
+            if start <= offset < end:
+                return True
+        return False
 
     for magic, type_name, mime in MAGIC_SIGNATURES:
         start = 0
@@ -534,14 +547,15 @@ def _scan_for_files_with_data(
             idx = payload.find(magic, start)
             if idx == -1:
                 break
-            if idx in offsets_checked:
+            if _is_inside_region(idx):
                 start = idx + 1
                 continue
-            offsets_checked.add(idx)
 
             file_data, complete, reason = _extract_file_bounds(
                 payload, idx, type_name, context, protocol_hint
             )
+            end = idx + len(file_data)
+            extracted_regions.append((idx, end))
 
             md5, sha1, sha256 = _compute_hashes_stream(file_data)
             detected_name = _guess_filename(context, type_name, protocol_hint)
@@ -571,6 +585,6 @@ def _scan_for_files_with_data(
                 metadata={"_raw_bytes": file_data.hex()},
             )
             results.append((file_data, artifact))
-            start = idx + 1
+            start = end
 
     return results
