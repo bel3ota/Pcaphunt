@@ -56,6 +56,33 @@ MAGIC_SIGNATURES: list[tuple[bytes, str, str]] = [
     (b"MM\x00*", "TIFF", "image/tiff"),
 ]
 
+# Minimum bytes for a plausible file of each type (filters false positives).
+# Set low enough that legitimate tiny files / tests aren't rejected.
+MIN_FILE_SIZES: dict[str, int] = {
+    "JPEG": 4,
+    "PNG": 4,
+    "GIF": 4,
+    "PDF": 4,
+    "ZIP": 4,
+    "GZIP": 4,
+    "TAR": 4,
+    "ELF": 4,
+    "PE": 4,
+    "SQLite": 4,
+    "WAV": 4,
+    "MP3": 400,  # one MPEG frame is ~400 bytes
+    "MP4": 4,
+    "OLE2": 4,
+    "DOCX": 4,
+    "XLSX": 4,
+    "PPTX": 4,
+    "RAR": 4,
+    "RAR5": 4,
+    "7Z": 4,
+    "BMP": 4,
+    "TIFF": 4,
+}
+
 # For ZIP-based formats, we need secondary checks
 ZIP_TYPES: dict[str, tuple[bytes, str, str]] = {
     "DOCX": (b"word/document.xml", "DOCX", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
@@ -90,6 +117,99 @@ def detect_file_type(data: bytes) -> tuple[str, str] | None:
                 return "ZIP", "application/zip"
             return type_name, mime
     return None
+
+
+# Valid JPEG markers (excluding SOI 0xFFD8 and EOI 0xFFD9)
+_JPEG_VALID_MARKERS: set[int] = {
+    0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
+    0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
+    0xDB, 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7,
+    0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF,
+    0xDA, 0xFE,
+}
+
+
+def _is_valid_jpeg(data: bytes) -> bool:
+    """Basic structural validation for JPEG.
+
+    Checks that SOI is followed by at least one valid marker and
+    that there is an EOI marker somewhere in the data.
+    """
+    if len(data) < 4:
+        return False
+    if data[:2] != b"\xff\xd8":
+        return False
+    # Scan for at least one valid marker after SOI
+    has_valid_marker = False
+    i = 2
+    while i < len(data) - 1:
+        if data[i] == 0xFF:
+            marker = data[i + 1]
+            if marker == 0xD9:  # EOI
+                return has_valid_marker
+            if marker in _JPEG_VALID_MARKERS:
+                has_valid_marker = True
+                # Skip marker + length bytes (2-byte length follows marker)
+                if i + 3 < len(data):
+                    length = int.from_bytes(data[i + 2 : i + 4], "big")
+                    i += 2 + length
+                    continue
+        i += 1
+    # No EOI found
+    return False
+
+
+def _is_valid_mp3_frame(data: bytes) -> bool:
+    """Check that data contains at least three valid MPEG audio frame headers.
+
+    A single valid-looking frame header is common in random binary data.
+    Requiring three headers within the first 4 KB eliminates virtually all
+    false positives while still accepting real MP3 files.
+    """
+    if len(data) < 12:
+        return False
+
+    def _valid_header(offset: int) -> bool:
+        if offset + 4 > len(data):
+            return False
+        header = int.from_bytes(data[offset : offset + 4], "big")
+        if (header & 0xFFE00000) != 0xFFE00000:
+            return False
+        version = (header >> 19) & 0x03
+        if version == 0x01:
+            return False
+        layer = (header >> 17) & 0x03
+        if layer == 0x00:
+            return False
+        bitrate = (header >> 12) & 0x0F
+        if bitrate in (0x00, 0x0F):
+            return False
+        sample_rate = (header >> 10) & 0x03
+        if sample_rate == 0x03:
+            return False
+        return True
+
+    # Count valid headers in the first 4096 bytes (covers ~10 frames even at high bitrate)
+    scan_len = min(len(data) - 3, 4096)
+    header_count = 0
+    for i in range(scan_len):
+        if _valid_header(i):
+            header_count += 1
+            if header_count >= 3:
+                return True
+    return False
+
+
+def _is_plausible_file(data: bytes, type_name: str) -> bool:
+    """Quick validation to reject obvious false positives."""
+    min_size = MIN_FILE_SIZES.get(type_name, 20)
+    if len(data) < min_size:
+        return False
+    if type_name == "JPEG":
+        return _is_valid_jpeg(data)
+    if type_name in ("MP3", "MP3_ID3"):
+        return _is_valid_mp3_frame(data)
+    return True
 
 
 def _sanitize_filename(name: str, max_len: int = 128) -> str:
@@ -173,6 +293,11 @@ def extract_files_from_payload(
             )
             end = idx + len(file_data)
             extracted_regions.append((idx, end))
+
+            # Validate extracted data to filter false positives
+            if not _is_plausible_file(file_data, type_name):
+                start = end
+                continue
 
             md5, sha1, sha256 = _compute_hashes_stream(file_data)
 
@@ -486,6 +611,9 @@ def extract_http_files(
             body, 0, type_name, enriched_context, "HTTP"
         )
 
+        if not _is_plausible_file(file_data, type_name):
+            return artifacts
+
         md5, sha1, sha256 = _compute_hashes_stream(file_data)
         detected_name = _guess_filename(enriched_context, type_name, "HTTP")
         safe_name = _sanitize_filename(detected_name or f"http_{type_name.lower()}")
@@ -556,6 +684,10 @@ def _scan_for_files_with_data(
             )
             end = idx + len(file_data)
             extracted_regions.append((idx, end))
+
+            if not _is_plausible_file(file_data, type_name):
+                start = end
+                continue
 
             md5, sha1, sha256 = _compute_hashes_stream(file_data)
             detected_name = _guess_filename(context, type_name, protocol_hint)
