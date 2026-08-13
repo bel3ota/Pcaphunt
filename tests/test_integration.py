@@ -558,3 +558,86 @@ class TestHTMLReport:
         assert "Network" in content
         assert "Streams" in content
         assert "JSON.parse(atob" in content
+
+    def test_jpeg_file_extracted_end_to_end(self, tmp_output_dir):
+        """A JPEG in a TCP payload must be detected and written to disk."""
+        from scapy.all import IP, TCP, Raw, wrpcap
+        import tempfile
+
+        # Build a minimal valid JPEG
+        jpeg = (
+            b"\xff\xd8\xff"  # SOI
+            b"\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"  # APP0
+            b"\xff\xd9"  # EOI
+        )
+        packets = [
+            IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=12345, dport=80) / Raw(jpeg),
+        ]
+        with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as f:
+            wrpcap(f.name, packets)
+            pcap_path = f.name
+
+        try:
+            import subprocess
+            import sys
+            result = subprocess.run(
+                [sys.executable, "-m", "pcaphunt", pcap_path, "-o", tmp_output_dir, "--quiet"],
+                capture_output=True, text=True,
+            )
+            assert result.returncode == 0
+
+            extracted_dir = Path(tmp_output_dir) / "extracted_files"
+            assert extracted_dir.exists()
+
+            # Should contain a .jpeg (or .jpg) file
+            jpeg_files = list(extracted_dir.glob("*.jpeg")) + list(extracted_dir.glob("*.jpg"))
+            assert len(jpeg_files) >= 1, f"No JPEG extracted. Contents: {list(extracted_dir.iterdir())}"
+
+            # Verify the extracted file is a valid JPEG
+            data = jpeg_files[0].read_bytes()
+            assert data.startswith(b"\xff\xd8\xff")
+            assert data.endswith(b"\xff\xd9")
+        finally:
+            import os
+            os.unlink(pcap_path)
+
+    def test_jpeg_extracted_in_deep_mode(self, tmp_output_dir):
+        """A JPEG split across two TCP packets must be reconstructed and extracted in deep mode."""
+        from scapy.all import IP, TCP, Raw, wrpcap
+        import tempfile
+
+        jpeg = (
+            b"\xff\xd8\xff"
+            b"\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+            b"\xff\xd9"
+        )
+        part1 = jpeg[:8]
+        part2 = jpeg[8:]
+
+        packets = [
+            IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=12345, dport=80, seq=100) / Raw(part1),
+            IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=12345, dport=80, seq=108) / Raw(part2),
+        ]
+        with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as f:
+            wrpcap(f.name, packets)
+            pcap_path = f.name
+
+        try:
+            import subprocess
+            import sys
+            result = subprocess.run(
+                [sys.executable, "-m", "pcaphunt", pcap_path, "-o", tmp_output_dir, "--quiet", "--deep"],
+                capture_output=True, text=True,
+            )
+            assert result.returncode == 0
+
+            extracted_dir = Path(tmp_output_dir) / "extracted_files"
+            jpeg_files = list(extracted_dir.glob("*.jpeg")) + list(extracted_dir.glob("*.jpg"))
+            assert len(jpeg_files) >= 1, f"No JPEG in deep mode. Contents: {list(extracted_dir.iterdir())}"
+
+            data = jpeg_files[0].read_bytes()
+            assert data.startswith(b"\xff\xd8\xff")
+            assert data.endswith(b"\xff\xd9")
+        finally:
+            import os
+            os.unlink(pcap_path)

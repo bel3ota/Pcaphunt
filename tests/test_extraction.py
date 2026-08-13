@@ -172,6 +172,32 @@ class TestExtractFilesFromPayload:
         assert art.md5 != ""
         assert art.sha256 != ""
 
+    def test_extract_jpeg(self):
+        reset_artifact_counter()
+        # Minimal valid JPEG structure: SOI + APP0 marker + JFIF + EOI
+        payload = (
+            b"\xff\xd8\xff"  # SOI
+            b"\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"  # APP0
+            b"\xff\xd9"  # EOI
+        )
+        ctx = {
+            "source": "10.0.0.1:12345",
+            "destination": "10.0.0.2:80",
+            "protocol": "TCP",
+            "packet_numbers": [1],
+            "first_seen_packet": 1,
+        }
+        arts = extract_files_from_payload(payload, ctx)
+        assert len(arts) >= 1
+        art = arts[0]
+        assert art.file_type == "image/jpeg"
+        assert art.complete is True
+        # Critical: raw bytes must be stored so the file can be written
+        assert "_raw_bytes" in art.metadata
+        raw = bytes.fromhex(art.metadata["_raw_bytes"])
+        assert raw.startswith(b"\xff\xd8\xff")
+        assert raw.endswith(b"\xff\xd9")
+
     def test_no_magic(self):
         reset_artifact_counter()
         payload = b"this is just plain text with no file magic"

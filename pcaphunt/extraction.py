@@ -196,6 +196,7 @@ def extract_files_from_payload(
                 sha1=sha1,
                 sha256=sha256,
                 detected_filename=detected_name,
+                metadata={"_raw_bytes": file_data.hex()},
             )
             artifacts.append(artifact)
             start = idx + 1
@@ -503,6 +504,7 @@ def extract_http_files(
             sha1=sha1,
             sha256=sha256,
             detected_filename=detected_name,
+            metadata={"_raw_bytes": file_data.hex()},
         )
         artifacts.append((file_data, artifact))
 
@@ -566,6 +568,7 @@ def _scan_for_files_with_data(
                 sha1=sha1,
                 sha256=sha256,
                 detected_filename=detected_name,
+                metadata={"_raw_bytes": file_data.hex()},
             )
             results.append((file_data, artifact))
             start = idx + 1
