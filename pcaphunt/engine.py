@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from pcaphunt.config import Config
-from pcaphunt.core import build_context, extract_printable_strings, get_packet_metadata
+from pcaphunt.core import build_context, get_packet_metadata
 from pcaphunt.pcap_reader import get_packet_payload
 from pcaphunt.detectors.base64 import Base64Detector
 from pcaphunt.detectors.credentials import CredentialsDetector
@@ -85,7 +85,6 @@ def analyze_packets(
         List of finding dictionaries.
     """
     detectors = create_detectors(config)
-    all_findings: list[dict[str, Any]] = []
     dedup_map: dict[str, dict[str, Any]] = {}
 
     packets = list(read_pcap(pcap_path))
@@ -107,7 +106,7 @@ def analyze_packets(
                 try:
                     findings = detector.detect(payload, context)
                     for finding in findings:
-                        _add_finding(finding, all_findings, dedup_map, config.deduplication)
+                        _add_finding(finding, dedup_map, config.deduplication)
                 except Exception as exc:
                     logger.debug("Detector %s failed on packet %d: %s", detector.name, pkt_num, exc)
 
@@ -142,7 +141,7 @@ def analyze_packets(
                     try:
                         findings = detector.detect(reassembled, stream_context)
                         for finding in findings:
-                            _add_finding(finding, all_findings, dedup_map, config.deduplication)
+                            _add_finding(finding, dedup_map, config.deduplication)
                     except Exception as exc:
                         logger.debug("Detector %s failed on stream: %s", detector.name, exc)
 
@@ -150,43 +149,61 @@ def analyze_packets(
                 logger.debug("Error processing stream: %s", exc)
                 continue
 
-    # Merge deduplicated findings
-    if config.deduplication:
-        for fp, finding in dedup_map.items():
-            all_findings.append(finding)
-
+    # Convert dedup_map values to list
+    all_findings = list(dedup_map.values())
+    # Sort by first_seen_packet for deterministic order
+    all_findings.sort(key=lambda f: f.get("first_seen_packet") or 0)
     return all_findings
 
 
 def _add_finding(
     finding: dict[str, Any],
-    all_findings: list[dict[str, Any]],
     dedup_map: dict[str, dict[str, Any]],
     deduplicate: bool,
 ) -> None:
-    """Add a finding, handling deduplication.
+    """Add a finding to the deduplication map.
+
+    When deduplication is enabled, findings with identical content (same
+    fingerprint) are merged: packet numbers are combined, and the
+    first_seen_packet of the earliest discovery is preserved.
 
     Args:
         finding: New finding.
-        all_findings: List of all findings (used when dedup disabled).
-        dedup_map: Deduplication map.
+        dedup_map: Deduplication map (fp -> finding).
         deduplicate: Whether deduplication is enabled.
     """
-    if not deduplicate:
-        all_findings.append(finding)
-        return
-
     fp = finding.get("fingerprint")
-    if not fp:
-        all_findings.append(finding)
+
+    if not deduplicate or not fp:
+        # Generate a unique fingerprint for non-dedup mode
+        if not fp:
+            fp = stable_fingerprint(finding)
+        # Make unique by appending an incrementing counter if needed
+        unique_fp = fp
+        counter = 1
+        while unique_fp in dedup_map:
+            unique_fp = f"{fp}:{counter}"
+            counter += 1
+        dedup_map[unique_fp] = finding
         return
 
     if fp in dedup_map:
         existing = dedup_map[fp]
         # Merge packet numbers
+        existing_pkt_nums = set(existing.get("packet_numbers", []))
         for pn in finding.get("packet_numbers", []):
-            if pn not in existing["packet_numbers"]:
-                existing["packet_numbers"].append(pn)
-                existing["packet_numbers"].sort()
+            existing_pkt_nums.add(pn)
+        existing["packet_numbers"] = sorted(existing_pkt_nums)
+
+        # Preserve the earliest first_seen_packet
+        existing_first = existing.get("first_seen_packet")
+        new_first = finding.get("first_seen_packet")
+        if new_first is not None:
+            if existing_first is None or new_first < existing_first:
+                existing["first_seen_packet"] = new_first
+                # Also keep the earliest offset/source/destination as "primary"
+                existing["offset"] = finding.get("offset", existing.get("offset"))
+                existing["source"] = finding.get("source", existing.get("source"))
+                existing["destination"] = finding.get("destination", existing.get("destination"))
     else:
         dedup_map[fp] = finding

@@ -134,6 +134,42 @@ def malformed_pcap() -> str:
 
 
 @pytest.fixture
+def duplicate_content_pcap() -> str:
+    """Create a PCAP with duplicate content in different packets and streams."""
+    packets = []
+    # Packet 1: same plaintext as packet 2, different source
+    pkt1 = IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=11111, dport=80) / Raw(b"duplicate_flag{same_content}")
+    packets.append(pkt1)
+
+    # Packet 2: identical content, different IPs
+    pkt2 = IP(src="192.168.1.5", dst="192.168.1.10") / TCP(sport=22222, dport=443) / Raw(b"duplicate_flag{same_content}")
+    packets.append(pkt2)
+
+    # Packet 3: same content again, different protocol layer context
+    pkt3 = IP(src="10.0.0.3", dst="10.0.0.4") / TCP(sport=33333, dport=8080) / Raw(b"duplicate_flag{same_content}")
+    packets.append(pkt3)
+
+    # Packet 4: similar but NOT identical content
+    pkt4 = IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=11111, dport=80) / Raw(b"duplicate_flag{same_content!}")
+    packets.append(pkt4)
+
+    # Packet 5: different content entirely
+    pkt5 = IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=11111, dport=80) / Raw(b"unique_flag{different}")
+    packets.append(pkt5)
+
+    return create_synthetic_pcap("duplicate_content.pcap", packets)
+
+
+@pytest.fixture
+def empty_pcap() -> str:
+    """Create an empty PCAP with no interesting data."""
+    packets = []
+    pkt1 = IP(src="10.0.0.1", dst="10.0.0.2") / TCP(sport=12345, dport=80) / Raw(b"\x00\x00\x00")
+    packets.append(pkt1)
+    return create_synthetic_pcap("empty.pcap", packets)
+
+
+@pytest.fixture
 def tmp_output_dir() -> str:
     """Create a temporary output directory."""
     with tempfile.TemporaryDirectory() as tmpdir:

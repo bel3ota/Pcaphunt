@@ -60,9 +60,11 @@ class BaseDetector(ABC):
         """
         from pcaphunt.utils import stable_fingerprint
 
+        pkt_nums = context.get("packet_numbers", [])
         finding: dict[str, Any] = {
             "type": ftype or self.name,
-            "packet_numbers": context.get("packet_numbers", []),
+            "packet_numbers": list(pkt_nums),
+            "first_seen_packet": pkt_nums[0] if pkt_nums else None,
             "protocol": context.get("protocol", "Unknown"),
             "source": context.get("source", ""),
             "destination": context.get("destination", ""),

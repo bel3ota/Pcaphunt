@@ -15,18 +15,20 @@ During CTFs and incident-response investigations, PCAP files often contain thous
 - embedded file signatures (PNG, PDF, ZIP, etc.)
 - suspicious high-entropy blobs
 
-It associates every finding with specific packet numbers, reconstructs TCP streams in deep mode, and deduplicates repeated content so you get clean, actionable output.
+It associates every finding with specific packet numbers, reconstructs TCP streams in deep mode, deduplicates repeated content so you get clean, actionable output, and generates a searchable HTML report for easy inspection.
 
 ## Features
 
 - **14 modular detectors** covering the most common CTF/forensics data types
+- **Content-based deduplication** — identical findings across different packets are merged, not duplicated
 - **TCP stream reassembly** (`--deep`) to catch flags split across packets
+- **Self-contained HTML report** with search, filter, sort, and detail view
 - **Recursive decoding** (Base64 → hex → plaintext, etc.)
 - **Deduplication** prevents hundreds of identical files
 - **Rich terminal UI** with progress bars and color-coded results
 - **JSON output** (`--json`) for programmatic consumption
 - **Search filtering** (`--search`) to narrow results
-- **Configurable** via `~/.config/PcapHunt/config.toml`
+- **Configurable** via `~/.config/pcaphunt/config.toml`
 - **Graceful error handling** — malformed packets never crash the tool
 - **Fast** — works incrementally without loading the entire PCAP into memory
 
@@ -36,7 +38,7 @@ It associates every finding with specific packet numbers, reconstructs TCP strea
 
 ```bash
 git clone <repo-url>
-cd PcapHunt
+cd pcaphunt
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -45,7 +47,7 @@ pip install -e ".[dev]"
 ### System install with pipx
 
 ```bash
-pipx install PcapHunt
+pipx install pcaphunt
 ```
 
 ### Requirements
@@ -59,39 +61,52 @@ pipx install PcapHunt
 ### Basic scan
 
 ```bash
-PcapHunt capture.pcap
+pcaphunt capture.pcap
 ```
 
 ### Deep mode (TCP stream reassembly)
 
 ```bash
-PcapHunt capture.pcap --deep
+pcaphunt capture.pcap --deep
 ```
 
 ### Specify output directory
 
 ```bash
-PcapHunt capture.pcap -o ./results
+pcaphunt capture.pcap -o ./results
 ```
 
 ### JSON output to stdout
 
 ```bash
-PcapHunt capture.pcap --json
+pcaphunt capture.pcap --json
 ```
 
 ### Search for a specific string
 
 ```bash
-PcapHunt capture.pcap --search "flag"
+pcaphunt capture.pcap --search "flag"
+```
+
+### Disable HTML report
+
+```bash
+pcaphunt capture.pcap --no-html
+```
+
+### Disable deduplication
+
+```bash
+pcaphunt capture.pcap --no-dedup
 ```
 
 ### Full CLI reference
 
 ```text
-$ PcapHunt --help
-usage: PcapHunt [-h] [-o OUTPUT] [--deep] [--min-length MIN_LENGTH]
+$ pcaphunt --help
+usage: pcaphunt [-h] [-o OUTPUT] [--deep] [--min-length MIN_LENGTH]
                 [--no-dedup] [--json] [--quiet] [--search SEARCH] [--version]
+                [--html] [--no-html]
                 [pcap]
 
 PcapHunt - Hunt for useful data in PCAP/PCAPNG files
@@ -101,7 +116,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -o, --output OUTPUT   Output directory (default: ./PcapHunt_output)
+  -o, --output OUTPUT   Output directory (default: ./pcaphunt_output)
   --deep                Enable deep mode (TCP stream reassembly, etc.)
   --min-length MIN_LENGTH
                         Minimum plaintext string length (default: 6)
@@ -110,12 +125,14 @@ options:
   --quiet               Suppress terminal output
   --search SEARCH       Filter findings by search string
   --version             Show version and exit
+  --html                Generate HTML report (default: enabled)
+  --no-html             Disable HTML report generation
 ```
 
 Also runnable without installation:
 
 ```bash
-python -m PcapHunt capture.pcap
+python -m pcaphunt capture.pcap
 ```
 
 ## Examples
@@ -123,14 +140,15 @@ python -m PcapHunt capture.pcap
 ### Example 1: Basic scan
 
 ```bash
-$ PcapHunt challenge.pcap
+$ pcaphunt challenge.pcap
 
- ____                 _   _             _
-|  _ \ ___ __ _ _ __ | | | |_   _ _ __ | |_
-| |_) / __/ _` | '_ \| |_| | | | | '_ \| __|
-|  __/ (_| (_| | |_) |  _  | |_| | | | | |_
-|_|   \___\__,_| .__/|_| |_|\__,_|_| |_|\__|
-               |_|
+ ____   ____          _   _             _
+|  _ \ / ___|__ _ ___| | | |  _   _ _ __ | |_
+| |_) | |   / _` / __| |_| | | | | | '_ \| __|
+|  __/| |__| (_| \__ \  _  | | |_| | | | | |_
+|_|    \____\__,_|___/_| |_|  \__,_|_| |_|\__|
+
+             PCAP Content Hunter
 
 [*] Input: challenge.pcap
 [*] Packets: 18,421
@@ -138,21 +156,21 @@ $ PcapHunt challenge.pcap
 [+] Analyzing packets... 100%
 
 ────────────────────────────────────────────
-              PcapHunt RESULTS
+              PCAPHUNT RESULTS
 ────────────────────────────────────────────
 
   Plaintext       1,284
   Base64             37
   Hex                19
   Url Encoded        11
-  Urls               43
-  Ip Addresses      112
+  URLs               43
+  IP Addresses      112
   Domains            28
   Emails              6
   Credentials         4
   Flags               2
   Hashes             13
-  Jwt                 1
+  JWT                 1
   Files               7
   Suspicious          8
 
@@ -165,14 +183,15 @@ $ PcapHunt challenge.pcap
 🔒 Credentials detected: 4
   (saved to output/credentials/)
 
-[+] Results: ./PcapHunt_output/
+[+] Results: ./pcaphunt_output/
+[+] HTML report: ./pcaphunt_output/report.html
 [+] Analysis completed in 4.82 seconds
 ```
 
 ### Example 2: Deep mode
 
 ```bash
-$ PcapHunt challenge.pcap --deep -o ./deep_results
+$ pcaphunt challenge.pcap --deep -o ./deep_results
 ```
 
 Deep mode enables TCP stream reassembly, allowing PcapHunt to detect strings split across multiple packets.
@@ -180,11 +199,12 @@ Deep mode enables TCP stream reassembly, allowing PcapHunt to detect strings spl
 ### Example 3: JSON output
 
 ```bash
-$ PcapHunt challenge.pcap --json --quiet | jq '.[] | select(.type == "flags")'
+$ pcaphunt challenge.pcap --json --quiet | jq '.[] | select(.type == "flags")'
 
 {
   "type": "flags",
   "packet_numbers": [100, 101],
+  "first_seen_packet": 100,
   "protocol": "TCP",
   "source": "10.0.0.5:43122",
   "destination": "10.0.0.10:80",
@@ -198,10 +218,10 @@ $ PcapHunt challenge.pcap --json --quiet | jq '.[] | select(.type == "flags")'
 
 ## Output Structure
 
-Default output directory: `./PcapHunt_output/`
+Default output directory: `./pcaphunt_output/`
 
 ```text
-PcapHunt_output/
+pcaphunt_output/
 ├── plaintext/
 ├── base64/
 ├── hex/
@@ -218,7 +238,8 @@ PcapHunt_output/
 ├── suspicious/
 ├── streams/
 ├── summary.txt
-└── findings.json
+├── findings.json
+└── report.html
 ```
 
 Each finding is saved as a human-readable `.txt` file:
@@ -229,6 +250,7 @@ PcapHunt Finding
 
 Type: Base64
 Packet: 81
+First Seen: Packet 81
 Protocol: TCP
 Source: 10.0.0.5:43122
 Destination: 10.0.0.10:80
@@ -247,6 +269,38 @@ If multiple findings exist in one packet, files are numbered:
 ```text
 packet_12_01.txt
 packet_12_02.txt
+```
+
+## HTML Report
+
+PcapHunt generates a self-contained `report.html` by default. It requires no web server — simply open it in any modern browser.
+
+The report includes:
+
+- **Header** with PCAP filename, scan date/time, duration, and total findings
+- **Statistics dashboard** showing counts for each detector category
+- **Searchable, filterable, and sortable findings table** with:
+  - Category/type badges
+  - Extracted content (with truncation for very long values)
+  - Packet numbers and first-seen packet
+  - Source/destination IPs and ports
+  - Protocol
+  - Confidence score
+- **Clickable detail modal** for inspecting any finding without cluttering the main table
+- **Client-side search** across all content
+- **Category filtering** dropdown
+- **Sorting** by packet number, category, content, or confidence
+
+All extracted data is safely encoded before insertion. Malicious payloads in a PCAP cannot execute JavaScript in the report.
+
+### Opening the report
+
+```bash
+pcaphunt challenge.pcap
+# Then open in your browser:
+firefox ./pcaphunt_output/report.html
+# or
+chrome ./pcaphunt_output/report.html
 ```
 
 ## Detector Explanations
@@ -287,13 +341,28 @@ Packet 101: `a_flag}`
 Without `--deep`: no flag found.
 With `--deep`: `CTF{this_is_a_flag}` detected and associated with packets 100–101.
 
+## Deduplication
+
+By default, PcapHunt deduplicates findings based on their **actual extracted content**, not the packet number. This means:
+
+- If the same flag appears in packet 10, packet 25, and packet 100, only **one** result is saved
+- The saved result records **all** packet numbers where it was found
+- The **first seen packet** is preserved for reference
+- `Hello World`, `Hello World!`, and `hello world` are still treated as different findings
+
+Deduplication happens across the entire scan, including TCP stream reassembly results. To disable it and see every raw detection:
+
+```bash
+pcaphunt capture.pcap --no-dedup
+```
+
 ## Configuration
 
-Create `~/.config/PcapHunt/config.toml`:
+Create `~/.config/pcaphunt/config.toml`:
 
 ```toml
 # PcapHunt Configuration File
-# Place this file at ~/.config/PcapHunt/config.toml
+# Place this file at ~/.config/pcaphunt/config.toml
 
 # Minimum string length for plaintext extraction
 min_length = 6
@@ -328,7 +397,7 @@ flag_patterns = [
 ]
 
 # Default output directory
-output_directory = "./PcapHunt_output"
+output_directory = "./pcaphunt_output"
 
 # Maximum recursive decode depth
 max_decode_depth = 3
@@ -361,11 +430,12 @@ PcapHunt includes a comprehensive pytest suite with synthetic PCAP fixtures. Tes
 - URL, IP, domain, email detection
 - flag, hash, JWT, file-signature detection
 - entropy calculation
-- deduplication logic
+- deduplication logic (same content in multiple packets, cross-stream dedup, `--no-dedup`)
 - recursive decoding
 - malformed packet handling
 - TCP stream reconstruction (including split-flag detection)
-- output generation
+- output generation (TXT, JSON, HTML)
+- HTML report generation, search/filter, XSS-safe escaping
 - CLI argument parsing
 
 All tests use small synthetic PCAPs created in-memory with Scapy — no external files required.

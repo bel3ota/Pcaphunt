@@ -68,6 +68,9 @@ def format_finding_text(finding: dict[str, Any]) -> str:
     else:
         lines.append(f"Packets: {', '.join(str(n) for n in pkt_nums)}")
 
+    if finding.get("first_seen_packet") is not None:
+        lines.append(f"First Seen: Packet {finding['first_seen_packet']}")
+
     if finding.get("protocol"):
         lines.append(f"Protocol: {finding['protocol']}")
     if finding.get("source"):
@@ -134,36 +137,25 @@ class FileCounter:
 def write_findings(
     findings: list[dict[str, Any]],
     base_dir: str,
-    deduplicate: bool = True,
 ) -> None:
     """Write all findings to output files.
 
     Args:
         findings: List of finding dictionaries.
         base_dir: Base output directory.
-        deduplicate: Whether to skip duplicate findings.
     """
     base = create_output_structure(base_dir)
     counter = FileCounter()
-    seen: set[str] = set()
 
     for finding in findings:
         ftype = finding.get("type", "unknown")
         dir_name = ftype if ftype in OUTPUT_DIRS else "suspicious"
         dir_path = base / dir_name
 
-        if deduplicate:
-            fp = finding.get("fingerprint")
-            if fp:
-                if fp in seen:
-                    continue
-                seen.add(fp)
-
         pkt_nums = finding.get("packet_numbers", [])
-        if pkt_nums:
-            prefix = f"packet_{pkt_nums[0]}"
-        else:
-            prefix = "finding"
+        first_seen = finding.get("first_seen_packet")
+        prefix_pkt = first_seen if first_seen is not None else (pkt_nums[0] if pkt_nums else "finding")
+        prefix = f"packet_{prefix_pkt}"
 
         filename = counter.next(str(dir_path), prefix)
         filepath = dir_path / filename

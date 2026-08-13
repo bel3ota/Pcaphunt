@@ -15,6 +15,7 @@ from rich.text import Text
 from pcaphunt.config import Config
 from pcaphunt.engine import analyze_packets
 from pcaphunt.output import get_counts, write_findings
+from pcaphunt.report import generate_html_report
 from pcaphunt.version import __version__
 
 BANNER = r"""[bold cyan]
@@ -58,6 +59,12 @@ def get_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--version", action="store_true", help="Show version and exit"
+    )
+    parser.add_argument(
+        "--html", action="store_true", default=True, help="Generate HTML report (default: enabled)"
+    )
+    parser.add_argument(
+        "--no-html", action="store_true", help="Disable HTML report generation"
     )
     return parser
 
@@ -146,7 +153,19 @@ def run_cli() -> int:
 
     # Write output files
     if not args.json:
-        write_findings(all_findings, args.output, deduplicate=not args.no_dedup)
+        write_findings(all_findings, args.output)
+
+        # Generate HTML report unless disabled
+        if args.html and not args.no_html:
+            html_path = Path(args.output) / "report.html"
+            generate_html_report(
+                findings=all_findings,
+                pcap_name=pcap_path.name,
+                output_path=str(html_path),
+                duration_seconds=elapsed,
+            )
+            if not args.quiet:
+                console.print(f"[green][+] HTML report:[/green] {html_path}")
 
     # Terminal output
     if not args.quiet:

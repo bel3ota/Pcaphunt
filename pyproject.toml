@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "PcapHunt"
+name = "pcaphunt"
 version = "1.0.1"
 description = "A CLI tool for hunting useful data in PCAP/PCAPNG files"
 readme = "README.md"
@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-PcapHunt = "pcaphunt.cli:main"
+pcaphunt = "pcaphunt.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/bel3ota/PcapHunt"

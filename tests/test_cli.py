@@ -45,6 +45,16 @@ class TestCLI:
         args = parser.parse_args(["file.pcap", "--search", "flag"])
         assert args.search == "flag"
 
+    def test_parser_html(self):
+        parser = get_parser()
+        args = parser.parse_args(["file.pcap"])
+        assert args.html is True
+
+    def test_parser_no_html(self):
+        parser = get_parser()
+        args = parser.parse_args(["file.pcap", "--no-html"])
+        assert args.no_html is True
+
     def test_run_cli_no_args(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["PcapHunt"])
         result = run_cli()
@@ -73,3 +83,23 @@ class TestCLI:
         import json
         data = json.loads(result.stdout)
         assert isinstance(data, list)
+
+    def test_html_option_generates_report(self, simple_tcp_pcap, tmp_output_dir):
+        result = subprocess.run(
+            [sys.executable, "-m", "pcaphunt", simple_tcp_pcap, "-o", tmp_output_dir, "--quiet"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert (Path(tmp_output_dir) / "report.html").exists()
+
+    def test_no_html_option_skips_report(self, simple_tcp_pcap, tmp_output_dir):
+        result = subprocess.run(
+            [sys.executable, "-m", "pcaphunt", simple_tcp_pcap, "-o", tmp_output_dir, "--no-html", "--quiet"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert not (Path(tmp_output_dir) / "report.html").exists()
+        # TXT output should still exist
+        assert (Path(tmp_output_dir) / "summary.txt").exists()

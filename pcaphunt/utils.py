@@ -1,5 +1,7 @@
 """Utility functions for PcapHunt."""
 
+import hashlib
+import html
 import math
 import re
 from typing import Any
@@ -39,22 +41,25 @@ def is_high_entropy(data: bytes, threshold: float = 7.2) -> bool:
 
 
 def stable_fingerprint(finding: dict[str, Any]) -> str:
-    """Generate a stable fingerprint for deduplication.
+    """Generate a stable content-based fingerprint for deduplication.
+
+    The fingerprint is based solely on the detector type and the actual
+    extracted/decoded content, NOT on packet numbers or source/destination.
+    This ensures that the same content discovered in different packets
+    or streams is deduplicated correctly.
 
     Args:
         finding: A finding dictionary.
 
     Returns:
-        A hash-like string for deduplication.
+        A hex hash string for deduplication.
     """
-    import hashlib
-
     content = finding.get("decoded") or finding.get("original") or ""
     ftype = finding.get("type", "unknown")
-    source = finding.get("source", "")
-    dest = finding.get("destination", "")
-    key = f"{ftype}:{content}:{source}:{dest}"
-    return hashlib.md5(key.encode("utf-8", errors="ignore")).hexdigest()
+    # Content-only fingerprint: type + content
+    # Source/destination are NOT included so cross-packet duplicates are merged
+    key = f"{ftype}:{content}"
+    return hashlib.sha256(key.encode("utf-8", errors="ignore")).hexdigest()
 
 
 def recursive_decode(data: str, max_depth: int = 3) -> list[dict[str, Any]]:
@@ -149,3 +154,15 @@ def safe_filename(value: str) -> str:
         A safe filename string.
     """
     return re.sub(r"[^a-zA-Z0-9_\-]", "_", value)[:64]
+
+
+def html_escape(value: str) -> str:
+    """Safely escape a string for insertion into HTML.
+
+    Args:
+        value: Raw string (may contain HTML/JS).
+
+    Returns:
+        HTML-escaped string.
+    """
+    return html.escape(str(value), quote=True)
